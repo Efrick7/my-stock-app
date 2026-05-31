@@ -1,7 +1,6 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import pandas_ta as ta  # 換成雲端友善的指標庫
 from datetime import datetime
 import matplotlib.pyplot as plt
 
@@ -27,16 +26,15 @@ if st.button("開始分析最新盤勢"):
             # 確保資料格式被壓扁成正確的一維數據
             close_series = df['Close'].squeeze()
             
-            # 使用 pandas_ta 計算移動平均線
-            df['SMA10'] = ta.sma(close_series, length=10)
-            df['SMA60'] = ta.sma(close_series, length=60)
+            # 【純數學方法計算指標】完全不依賴 TA-Lib 或 pandas_ta，絕不報錯！
+            df['SMA10'] = close_series.rolling(window=10).mean()
+            df['SMA60'] = close_series.rolling(window=60).mean()
             
-            # 使用 pandas_ta 計算布林通道 (預設長度20, 標準差2)
-            bbands = ta.bbands(close_series, length=20, std=2)
-            # 新工具算出來的欄位名稱會長得像 BBU_20_2.0，我們把它簡化對齊舊名字
-            df['Upper'] = bbands.iloc[:, 2]   # 上軌
-            df['Middle'] = bbands.iloc[:, 0]  # 中軌
-            df['Lower'] = bbands.iloc[:, 1]   # 下軌
+            # 計算布林通道 (20日均線 + 正負2倍標準差)
+            df['Middle'] = close_series.rolling(window=20).mean()
+            std20 = close_series.rolling(window=20).std()
+            df['Upper'] = df['Middle'] + (2 * std20)
+            df['Lower'] = df['Middle'] - (2 * std20)
             
             # 買賣訊號邏輯
             df['Signal'] = 0
