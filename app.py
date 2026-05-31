@@ -23,10 +23,14 @@ if st.button("開始分析最新盤勢"):
         if len(df) == 0:
             st.error("找不到該股票資料，請檢查代號是否正確。")
         else:
+            # 【核心修正】將 Yahoo Finance 的雙層欄位（Price, Close）拍扁成單層
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(-1)
+            
             # 確保資料格式被壓扁成正確的一維數據
             close_series = df['Close'].squeeze()
             
-            # 【純數學方法計算指標】完全不依賴 TA-Lib 或 pandas_ta，絕不報錯！
+            # 【純數學方法計算指標】
             df['SMA10'] = close_series.rolling(window=10).mean()
             df['SMA60'] = close_series.rolling(window=60).mean()
             
