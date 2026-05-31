@@ -17,19 +17,32 @@ if st.button("開始分析最新盤勢"):
     try:
         today_date = datetime.now().strftime('%Y-%m-%d')
         
-        # 【暴力解法第一步】用最原始的方式抓取，直接指定只拿 Ticker
-        raw_data = yf.download(formatted_id, start="2025-01-01", end=today_date, group_by='ticker')
+        # 抓取資料
+        df = yf.download(formatted_id, start="2025-01-01", end=today_date)
         
-        if len(raw_data) == 0:
+        if len(df) == 0:
             st.error("找不到該股票資料，請檢查代號是否正確。")
         else:
-            # 【暴力解法第二步】不管它是幾層表格，我們直接用強迫抽取法，只把叫作 'Close' 的那一整排數字抽出來
-            # 這能確保 close_series 拿到的一定是純粹的日期與收盤價
-            close_series = raw_data.xs('Close', axis=1, level=-1).squeeze()
+            # ==========================================
+            # 【鋼鐵防禦層】不管是單層還是雙層欄位，直接強力拍扁！
+            # ==========================================
+            if isinstance(df.columns, pd.MultiIndex):
+                # 如果是雙層 (Price, Close)，直接強迫拿第二層的名字
+                df.columns = [col[1] if isinstance(col, tuple) else col for col in df.columns]
+            else:
+                # 如果已經是單層，確保名字乾淨
+                df.columns = [col if isinstance(col, str) else str(col) for col in df.columns]
+            
+            # 強制洗牌：如果欄位名稱裡有包含 'Close' 這個字的，直接把那個欄位改名為純 'Close'
+            for col in df.columns:
+                if 'Close' in col:
+                    df = df.rename(columns={col: 'Close'})
+            # ==========================================
+            
+            # 確保資料格式被壓扁成正確的一維數據
+            close_series = df['Close'].squeeze()
             
             # 【純數學方法計算指標】
-            df = pd.DataFrame(index=close_series.index)
-            df['Close'] = close_series
             df['SMA10'] = close_series.rolling(window=10).mean()
             df['SMA60'] = close_series.rolling(window=60).mean()
             
@@ -41,8 +54,8 @@ if st.button("開始分析最新盤勢"):
             
             # 買賣訊號邏輯
             df['Signal'] = 0
-            buy_condition = (df['Close'] > df['Upper']) & (df['SMA10'] > df['SMA60'])
-            sell_condition = (df['Close'] < df['Middle'])
+            buy_condition = (close_series > df['Upper']) & (df['SMA10'] > df['SMA60'])
+            sell_condition = (close_series < df['Middle'])
             
             df.loc[buy_condition, 'Signal'] = 1
             df.loc[sell_condition, 'Signal'] = -1
@@ -67,7 +80,7 @@ if st.button("開始分析最新盤勢"):
                 
             # 繪製圖表
             fig, ax = plt.subplots(figsize=(12, 6))
-            ax.plot(df.index, df['Close'], label='Close Price', color='dodgerblue')
+            ax.plot(df.index, close_series, label='Close Price', color='dodgerblue')
             ax.plot(df.index, df['SMA10'], label='10MA', color='orange', linestyle='--')
             ax.plot(df.index, df['SMA60'], label='60MA', color='green', linewidth=2)
             ax.plot(df.index, df['Upper'], label='BB Upper', color='red', alpha=0.3)
@@ -75,8 +88,8 @@ if st.button("開始分析最新盤勢"):
             ax.plot(df.index, df['Lower'], label='BB Lower', color='brown', alpha=0.3)
             
             # 標註買賣點
-            ax.plot(df[df['Position'] == 1].index, df['Close'][df['Position'] == 1], '^', markersize=10, color='green', label='BUY')
-            ax.plot(df[df['Position'] == -1].index, df['Close'][df['Position'] == -1], 'v', markersize=10, color='red', label='SELL')
+            ax.plot(df[df['Position'] == 1].index, close_series[df['Position'] == 1], '^', markersize=10, color='green', label='BUY')
+            ax.plot(df[df['Position'] == -1].index, close_series[df['Position'] == -1], 'v', markersize=10, color='red', label='SELL')
             
             ax.legend(loc='upper left')
             ax.grid(True, alpha=0.3)
