@@ -2,7 +2,6 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
-import matplotlib.pyplot as plt
 
 # 1. 設定網頁標題與手機版面配置
 st.set_page_config(page_title="台股波段提示模型", layout="centered")
@@ -23,19 +22,15 @@ if st.button("開始分析最新盤勢"):
         if len(df) == 0:
             st.error("找不到該股票資料，請檢查代號是否正確。")
         else:
-            # ==========================================
-            # 【鋼鐵防禦層】不管是單層還是雙層欄位，直接強力拍扁！
-            # ==========================================
+            # 【鋼鐵防禦層】強力拍扁欄位
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = [col[1] if isinstance(col, tuple) else col for col in df.columns]
             else:
                 df.columns = [col if isinstance(col, str) else str(col) for col in df.columns]
             
-            # 強制洗牌：如果欄位名稱裡有包含 'Close' 這個字的，直接改名為純 'Close'
             for col in df.columns:
                 if 'Close' in col:
                     df = df.rename(columns={col: 'Close'})
-            # ==========================================
             
             # 確保資料格式被壓扁成正確的一維數據
             close_series = df['Close'].squeeze()
@@ -44,7 +39,7 @@ if st.button("開始分析最新盤勢"):
             df['SMA10'] = close_series.rolling(window=10).mean()
             df['SMA60'] = close_series.rolling(window=60).mean()
             
-            # 計算布林通道 (20日均線 + 正負2倍標準差)
+            # 計算布林通道
             df['Middle'] = close_series.rolling(window=20).mean()
             std20 = close_series.rolling(window=20).std()
             df['Upper'] = df['Middle'] + (2 * std20)
@@ -76,24 +71,17 @@ if st.button("開始分析最新盤勢"):
             else:
                 st.info("💎 最新模型提示：目前訊號無變化，請依前次訊號操作。")
                 
-            # 繪製圖表
-            fig, ax = plt.subplots(figsize=(12, 6))
-            ax.plot(df.index, close_series, label='Close Price', color='dodgerblue')
-            ax.plot(df.index, df['SMA10'], label='10MA', color='orange', linestyle='--')
-            ax.plot(df.index, df['SMA60'], label='60MA', color='green', linewidth=2)
-            ax.plot(df.index, df['Upper'], label='BB Upper', color='red', alpha=0.3)
-            ax.plot(df.index, df['Middle'], label='BB Middle', color='purple', alpha=0.3)
-            ax.plot(df.index, df['Lower'], label='BB Lower', color='brown', alpha=0.3)
+            # ==========================================
+            # 【全新升級】使用 Streamlit 原生高效能網頁圖表
+            # ==========================================
+            st.subheader("📊 互動式 K 線與指標走勢圖")
             
-            # 標註買賣點
-            ax.plot(df[df['Position'] == 1].index, close_series[df['Position'] == 1], '^', markersize=10, color='green', label='BUY')
-            ax.plot(df[df['Position'] == -1].index, close_series[df['Position'] == -1], 'v', markersize=10, color='red', label='SELL')
+            # 準備要畫圖的表格，只留下需要的線條
+            chart_data = df[['Close', 'SMA10', 'SMA60', 'Upper', 'Middle', 'Lower']]
             
-            ax.legend(loc='upper left')
-            ax.grid(True, alpha=0.3)
-            plt.title(f"{formatted_id} Live Chart")
-            
-            st.pyplot(fig)
+            # 一行代碼，直接畫出高畫質、可手指縮放的動態圖表！
+            st.line_chart(chart_data)
+            # ==========================================
             
     except Exception as e:
         st.error(f"執行時發生錯誤: {e}\n請確認代號是否輸入正確。")
